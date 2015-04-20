@@ -112,6 +112,13 @@ code {
       <div class="page-header">
         <h1>New Webhook</h1>
       </div>
+
+      <% if (typeof msg !== 'undefined'){ %>
+        <div class="alert alert-<% if(msg.type === "success"){ %>success<% } else { %>danger<%}%> alert-dismissible" role="alert">
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <strong><%= msg.type %>!</strong> <%= msg.text %>
+        </div>
+      <% } %>
       
 	<form id="newWebhookForm" action="/new" method="post">
     <div class="row">

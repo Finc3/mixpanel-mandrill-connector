@@ -1,3 +1,5 @@
-./config
-./public
+./config/
+./public/
+.gitignore
+./gitignore
 

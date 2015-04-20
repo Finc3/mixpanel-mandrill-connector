@@ -113,6 +113,13 @@ code {
         <h1>Edit Webhook</h1>
       </div>
       
+      <% if (typeof msg !== 'undefined'){ %>
+        <div class="alert alert-<% if(msg.type === "success"){ %>success<% } else { %>danger<%}%> alert-dismissible" role="alert">
+          <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <strong><%= msg.type %>!</strong> <%= msg.text %>
+        </div>
+      <% } %>
+
     	<form action="/<%= webhook.id %>/edit" method="post">
     	<div class="row">
       <div class="col-lg-6">
@@ -123,7 +130,13 @@ code {
       </div>
     </div>
     <div class="row">
-      <div class="col-lg-6">
+      <div class="col-lg-4">
+        <div class="form-group">
+          <label for="hostname">Your URL</label>
+          <input type="text" id="hostname" class="form-control" readonly>
+        </div>
+      </div>
+      <div class="col-lg-2">
         <div class="form-group">
           <label for="endpoint">Endpoint</label>
           <input type="text" pattern="[a-zA-Z-]+" class="form-control" minlength="3" name="endpoint" id="endpoint" data-toggle="popover" data-trigger="focus" title="The URL endpoint you will enter in Mixpanel. This is the destination where Mixpanel sends the requests to. Ex. www.yourdomain.com/example-endpoint" data-placement="right" placeholder="Endpoint" value='<%= webhook.get("endpoint") %>' required>
@@ -205,6 +218,8 @@ code {
       $('#subject').tooltip({'trigger':'focus'});
       $('#email_from').tooltip({'trigger':'focus'});
       $('#email_name').tooltip({'trigger':'focus'});
+        var elem = document.getElementById("hostname");
+      elem.value = "https://" + window.location.hostname + "/";
 
     })
     </script>
