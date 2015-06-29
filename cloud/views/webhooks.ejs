@@ -115,8 +115,6 @@ code {
             <th>Endpoint</th>
             <th>Mandrill Template Slug</th>
             <th>Subject</th>
-            <th>From E-Mail</th>
-            <th>From Name</th>
             <th>GA Campaign</th>
             <th>Track Opens</th>
             <th>Track Clicks</th>
@@ -131,8 +129,6 @@ code {
                 <td><a id="endpoint" href="/<%= webhook.endpoint %>">/<%= webhook.endpoint %></td>
                 <td><%= webhook.mandrillTemplateSlug %></td>
                 <td><%= webhook.subject %></td>
-                <td><%= webhook.email_from %></td>
-                <td><%= webhook.email_name %></td>
                 <td><%= webhook.googleAnalyticsCampaign %></td>
                 <td><%= webhook.trackOpens %></td>
                 <td><%= webhook.trackClicks %></td>
@@ -143,7 +139,13 @@ code {
           <% } %>
         <% } %>
       </table>
-      <p>Hint: Copy your endpoint URLs and add them as the "webhook URL" to a Mixpanel Webhook campaign. Here's how: <a href="https://mixpanel.com/help/reference/webhooks">https://mixpanel.com/help/reference/webhooks</a></p>
+      <p>Some useful hints:</p>
+      <ul>
+        <li>Copy your endpoint URLs and add them as the "webhook URL" to a Mixpanel Webhook campaign. <a href="https://mixpanel.com/help/reference/webhooks">Here's how</a></li>
+        <li>Avoid sending too often, sending content that isn’t relevant to your recipients, not including an unsubscribe link because this will result in high <a href="https://mandrill.zendesk.com/hc/en-us/articles/205583477-High-Spam-Complaint-Rate">spam complaint rates</a>.</li>
+        <li>Give you subscribers the opportunity to unsubscribe from your emails. Mandrill has it's own <a href="https://mandrill.zendesk.com/hc/en-us/articles/205582947-How-do-recipients-unsubscribe-from-emails-sent-through-Mandrill">merge tag</a> for it to <a href="https://mandrill.zendesk.com/hc/en-us/articles/205583017-Can-I-add-an-automatic-unsubscribe-link-to-Mandrill-emails">automatically create the corresponding link</a>.</li>
+        <li>Attention: Don't click on "Test Webhook" in Mixpanel during the creation process. This will send an email to a randomly choosen people profile of your productive segments. If you want to test your webhook, create a dummy profile in the Explore section > mark the profile > click on "Send Notification" > Webhook</li>
+      </ul>
     </div>
 
     <footer class="footer">

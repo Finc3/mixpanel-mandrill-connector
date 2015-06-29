@@ -165,17 +165,9 @@ code {
     </div>
     <div class="row">
       <div class="col-lg-6">
-    		<div class="form-group">
-  		    <label for="campaign">Google Analytics Campaign</label> <span class="optional">(optional)</span>
-  		    <input type="text" class="form-control" name="campaign" id="campaign" placeholder="Campaign" data-toggle="popover" data-trigger="focus" title="If you want to have your email tracking data in Google Analytics to have only one single point of truth, enter the campaign name here which you also have in GA." data-placement="right">
-    		</div>
-      </div>
-    </div>
-    <div class="row">
-      <div class="col-lg-6">
         <div class="form-group">
           <label for="campaign">E-Mail From</label> <span class="optional">(optional)</span>
-          <input type="text" class="form-control" name="email_from" id="email_from" placeholder="E-Mail From" data-toggle="popover" data-trigger="focus" title="The E-Mail address to be displayed as sender. You should enter your real E-Mail address here." data-placement="right">
+          <input type="email" class="form-control" name="email_from" id="email_from" placeholder="E-Mail From" data-toggle="popover" data-trigger="focus" title="The E-Mail address to be displayed as sender. You should enter your real E-Mail address here." data-placement="right">
         </div>
       </div>
     </div>
@@ -187,18 +179,53 @@ code {
         </div>
       </div>
     </div>
-		<div class="checkbox">
-		    <label>
-		      <input name="trackOpens" type="checkbox"> Track Opens <span class="optional">(optional)</span>
-		    </label>
-	  	</div>
-	  	<div class="checkbox">
-		    <label>
-		      <input name="trackClicks" type="checkbox"> Track Clicks <span class="optional">(optional)</span>
-		    </label>
-	  	</div>
-
-		<button type="submit" class="btn btn-primary">Submit</button>
+    <div class="row">
+      <div class="col-lg-6">
+    		<div class="checkbox">
+    		    <label>
+    		      <input name="trackOpens" type="checkbox">Track Opens <span class="optional">(optional)</span>
+    		    </label>
+      	</div>
+      	<div class="checkbox">
+    	    <label>
+    	      <input name="trackClicks" type="checkbox">Track Clicks <span class="optional">(optional)</span>
+    	    </label>
+      	</div>
+        <div class="checkbox">
+          <label>
+            <input name="trackGoogleAnalytics" class="trackGoogleAnalytics" type="checkbox"> Track with Google Analytics <span class="optional">(optional)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-6 input_fields_wrap" style="display:none">
+        <div class="row">
+          <div class="col-lg-12">
+            <div class="form-group">
+              <label for="googleAnalyticsCampaign">Campaign Name</label>
+              <input type="text" class="form-control ga_tracking" name="googleAnalyticsCampaign" id="googleAnalyticsCampaign" placeholder="Campaign" data-toggle="popover" data-trigger="focus" title="A Google Analytics campaign. What this actually means is up to you: it is frequently a Google search campaign, but you could technically put whatever tracking variable you want in here. It's what gets added to the utm_campaign parameter." data-placement="right">
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-lg-6">
+            <input type="text" class="form-control ga_tracking domain" placeholder="www.mydomain.com" name="domain[]" data-toggle="popover" data-trigger="focus" title="Mandrill needs a list of domains which are eligible for Google Analytics variables. Some links don't work as intended when a query string is added. To avoid this, you'll tell Mandrill which links are intended to receive the Google Analytics variables." data-placement="right" />
+          </div>        
+          <div class="col-lg-4">
+            <button class="btn btn-primary add_field_button">Add New Domain</button>
+          </div>
+           <div class="col-lg-2">
+            <a href="#" class="btn btn-danger remove_field">Remove</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:15px;">
+      <div class="col-lg-6">
+		    <button type="submit" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
 
 	</form>
       
@@ -222,12 +249,40 @@ code {
     $(document).ready(function(){
       $('#name').tooltip({'trigger':'focus'});
       $('#endpoint').tooltip({'trigger':'focus'});
-      $('#campaign').tooltip({'trigger':'focus'});
+      $('#googleAnalyticsCampaign').tooltip({'trigger':'focus'});
       $('#subject').tooltip({'trigger':'focus'});
       $('#email_from').tooltip({'trigger':'focus'});
       $('#email_name').tooltip({'trigger':'focus'});
+      $('.domain').tooltip({'trigger':'focus'});
       var elem = document.getElementById("hostname");
       elem.value = "https://" + window.location.hostname + "/";
+
+      $(".trackGoogleAnalytics").change(function(){
+        if($(this).is(":checked")) {
+          $(".input_fields_wrap").fadeIn("slow");
+          $(".ga_tracking").attr("required", true);
+        } else {
+          $(".input_fields_wrap").fadeOut("slow");
+          $(".ga_tracking").attr("required", false);
+
+        }
+      });
+
+      var max_fields      = 10; //maximum input boxes allowed
+      var wrapper         = $(".input_fields_wrap"); //Fields wrapper
+       var x = 1; //initlal text box count      
+     
+      $(document).on('click', ".add_field_button", function(e){ //on add input button click
+          e.preventDefault();
+          if(x < max_fields){ //max input box allowed
+              x++; //text box increment
+              $(wrapper).append('<div class="row" style="margin-top:15px;"><div class="col-lg-6"><input type="text" class="form-control" placeholder="mydomain.com" name="domain[]" /></div><div class="col-lg-4"><button class="btn btn-primary add_field_button">Add New Domain</button></div><div class="col-lg-2"><a href="#" class="btn btn-danger remove_field">Remove</a></div></div>'); //add input box
+          }
+      });
+
+      $(wrapper).on("click",".remove_field", function(e){ //user click on remove text
+          e.preventDefault(); $(this).parent().parent().remove(); x--;
+      })
 
     })
     </script>

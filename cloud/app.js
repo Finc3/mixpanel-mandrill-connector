@@ -37,6 +37,10 @@ Parse.Cloud.beforeSave("Webhook", function(request, response) {
     request.object.set("out", 0);
   }
 
+  /*if (!request.object.get("trackGoogleAnalytics")) {
+    request.object.set("trackGoogleAnalytics", false);
+  }*/
+
   response.success();
 });
 
@@ -310,6 +314,12 @@ app.get("/new", function(req, res){
 //  N E W  W E B H O O K
 // creates a new webhook
 app.post("/new", function(req, res){
+
+	var trackGoogleAnalytics = false;
+	if (req.body.trackGoogleAnalytics == 'on'){
+		trackGoogleAnalytics = true;
+	}
+
 	Parse.Cloud.useMasterKey();
 	var user = Parse.User.current();
 	if (user){
@@ -363,7 +373,6 @@ app.post("/new", function(req, res){
 						  			webhook.set("name", req.body.name);
 									webhook.set("endpoint", req.body.endpoint);
 									webhook.set("mandrillTemplateSlug", req.body.slug);
-									webhook.set("googleAnalyticsCampaign", req.body.campaign);
 									webhook.set("trackOpens", trackOpens);
 									webhook.set("trackClicks", trackClicks);
 									webhook.set("subject", req.body.subject);
@@ -372,6 +381,15 @@ app.post("/new", function(req, res){
 									webhook.set("user", Parse.User.current());
 									webhook.set("in", 0);
 									webhook.set("out", 0);
+
+									console.log("trackGoogleAnalytics: " + req.body.trackGoogleAnalytics);
+
+									if (trackGoogleAnalytics){
+										webhook.set("trackGoogleAnalytics", true);
+										webhook.set("googleAnalyticsCampaign", req.body.googleAnalyticsCampaign);
+										webhook.set("googleAnalyticsDomains", req.body.domain);
+									}
+									
 									webhook.setACL(new Parse.ACL(Parse.User.current()));
 
 									webhook.save(null, {
@@ -401,7 +419,6 @@ app.post("/new", function(req, res){
 			webhook.set("name", req.body.name);
 			webhook.set("endpoint", req.body.endpoint);
 			webhook.set("mandrillTemplateSlug", req.body.slug);
-			webhook.set("googleAnalyticsCampaign", req.body.campaign);
 			webhook.set("trackOpens", trackOpens);
 			webhook.set("trackClicks", trackClicks);
 			webhook.set("subject", req.body.subject);
@@ -410,6 +427,11 @@ app.post("/new", function(req, res){
 			webhook.set("user", Parse.User.current());
 			webhook.set("in", 0);
 			webhook.set("out", 0);
+			if (trackGoogleAnalytics){
+				webhook.set("trackGoogleAnalytics", true);
+				webhook.set("googleAnalyticsCampaign", req.body.googleAnalyticsCampaign);
+				webhook.set("googleAnalyticsDomains", req.body.domain);
+			}
 			webhook.setACL(new Parse.ACL(Parse.User.current()));
 
 		webhook.save(null, {
@@ -593,6 +615,7 @@ app.post("/:id/edit", function(req, res){
 // E N D P O I N T
 // custom endpoint where mixpanel request will be transformed into an mandrill request
 app.post('/:endpoint', function(req, res) {
+
  	Parse.Cloud.useMasterKey();
 
 	var webhook = Parse.Object.extend("Webhook");
@@ -658,15 +681,26 @@ app.post('/:endpoint', function(req, res) {
 				return;
 			}
 
-			//res.send(200);
-
-			// only send mails if valid mixpanel request
-			//if (isValidMixpanelRequest) {
-
 				var userPointer = webhook.get("user");
 
 				userPointer.fetch().then(function(user){
-					console.log(user);
+
+					var message = {
+			            subject: webhook.get("subject"),
+			            from_email: webhook.get("email_from"),
+	  					from_name: webhook.get("email_name"),
+			            to: userData,
+			            track_opens: webhook.get("trackOpens"),
+			            track_clicks: webhook.get("trackClicks"),
+			        };
+
+			        if (webhook.get("trackGoogleAnalytics")){
+			        	
+			        	message.google_analytics_domains = webhook.get("googleAnalyticsDomains");
+			        	message.google_analytics_campaign = webhook.get("googleAnalyticsCampaign");
+			        }
+
+			        console.log(message);
 
 					Parse.Cloud.httpRequest({
 					    method: 'POST',
@@ -678,12 +712,7 @@ app.post('/:endpoint', function(req, res) {
 					        template_name: webhook.get("mandrillTemplateSlug"),
 					        template_content: null,
 					        key: user.get("apiKey"),
-					        message: {
-					            subject: webhook.get("subject"),
-					            from_email: webhook.get("email_from"),
-			  					from_name: webhook.get("email_name"),
-					            to: userData
-					        },
+					        message: message,
 					        async: false
 					    },
 					    success: function(httpResponse) {
