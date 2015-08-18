@@ -37,10 +37,6 @@ Parse.Cloud.beforeSave("Webhook", function(request, response) {
     request.object.set("out", 0);
   }
 
-  /*if (!request.object.get("trackGoogleAnalytics")) {
-    request.object.set("trackGoogleAnalytics", false);
-  }*/
-
   response.success();
 });
 
@@ -52,17 +48,15 @@ app.get("/setup", function(req, res){
 	var admin = Parse.Object.extend("User");
 	var query = new Parse.Query(admin);
 	query.equalTo("username", "admin");
-	query.find({
-		success: function(results){
-			if (results.length > 0){
-				res.render("login.ejs", { msg: { type: "Error!", text: "You already have setup your account!"}});
-			} else {
-				res.render("setup.ejs");
-			}
-		},
-		error: function(error){
-			console.log(error);
+	query.find().then(function(results){
+		if (results.length > 0){
+			res.render("login.ejs", { msg: { type: "Error!", text: "You already have setup your account!"}});
+		} else {
+			res.render("setup.ejs");
 		}
+	}, function(error){
+		console.log(error.message);
+		res.send(500);
 	});	
 });
 
@@ -79,31 +73,27 @@ app.post("/setup", function(req, res){
 	    url: 'https://mandrillapp.com/api/1.0/users/info.json',
 	    body: {
 	        key: req.body.apiKey,
-	    },
-	    success: function(httpResponse) {
-	    	var response = JSON.parse(httpResponse.text);
-
-	    	var user = new Parse.User();
-			user.set("email", req.body.email);
-			user.set("password", req.body.password);
-			user.set("username", "admin");
-			user.set("apiKey", req.body.apiKey);
-			user.set("notificationMail", req.body.notificationMail);
-
-			user.signUp(null, {
-				success: function(user){
-					res.render("login.ejs", { msg: { type: "success", text: "You can now sign in with your password!" }});
-				},
-				error: function(error){
-					res.render("setup.ejs", { msg: { type: "Error", text: "An error occured." }});
-				}
-			});
-			
-	    },
-	    error: function(httpResponse) {
-	    	var response = JSON.parse(httpResponse.text);
-	        res.render("setup.ejs", { msg: { type: "Error", text: response.message }});
 	    }
+	}).then(function(httpResponse){
+    	var response = JSON.parse(httpResponse.text);
+
+    	var user = new Parse.User();
+		user.set("email", req.body.email);
+		user.set("password", req.body.password);
+		user.set("username", "admin");
+		user.set("apiKey", req.body.apiKey);
+		user.set("notificationMail", req.body.notificationMail);
+
+		return user.signUp();
+			
+	}, function(httpResponse){
+		var response = JSON.parse(httpResponse.text);
+        res.render("setup.ejs", { msg: { type: "Error", text: response.message }});
+    }).then(function(user){
+		res.render("login.ejs", { msg: { type: "success", text: "You can now sign in with your password!" }});
+	}, function(error){  
+		console.log(error);  	
+		res.render("setup.ejs", { msg: { type: "Error", text: error.message }});
 	});
 });	
 
@@ -118,29 +108,25 @@ app.get('/', function(req, res) {
 		var query = new Parse.Query(webhook);
 		console.log(Parse.User.current());
 		query.equalTo("user", Parse.User.current());
-		query.find({
-			success: function(webhooks){
-				res.render("webhooks.ejs", { webhooks: webhooks });
-			},
-			error: function(error){
-				res.render("webhooks.ejs", { msg: {type: "error", text: "An error occured. Try again!"}});
-			}
+		query.find().then(function(webhooks){
+			res.render("webhooks.ejs", { webhooks: webhooks });
+		}, function(error){
+			console.log(error);
+			res.render("webhooks.ejs", { msg: {type: "error", text: error.message}});
 		}); 
 
 	} else {
 		var query = new Parse.Query(Parse.User);
 		query.equalTo("username", "admin");
-		query.find({
-			success: function(users){
-				if (users.length > 0){
-					res.redirect("/login");
-				} else {
-					res.redirect("/setup");
-				}
-			},
-			error: function(users){
+		query.find().then(function(users){
+			if (users.length > 0){
+				res.redirect("/login");
+			} else {
 				res.redirect("/setup");
 			}
+		}, function(error){
+			console.log(error);
+			res.redirect("/setup");
 		});  
 	}
 });
@@ -155,7 +141,7 @@ app.get('/', function(req, res) {
 	    res.render("forgot-password.ejs", { msg: {type:"success", text: "We've sent you an email to reset your password."}});
 	  },
 	  error: function(error) {
-	    // Show the error message somewhere
+	   console.log(error);
 	     res.render("forgot-password.ejs", { msg: {type:"Error!", text: error.message }});
 	  }
 	});
@@ -220,40 +206,35 @@ app.get("/settings", function(req, res){
 // updates the settings
 app.post("/settings", function(req, res){
 	Parse.Cloud.useMasterKey();
-	var user = Parse.User.current();
-	if (user){
-		user.fetch().then(function(user){
-			Parse.Cloud.httpRequest({
+	var user = null;
+	if (Parse.User.current()){
+		Parse.User.current().fetch().then(function(result){
+			user = result;
+			return Parse.Cloud.httpRequest({
 			    method: 'POST',
 			    headers: {
 			        'Content-Type': 'application/json; charset=utf-8'
 			    },
 			    url: 'https://mandrillapp.com/api/1.0/users/info.json',
 			    body: {
-			        key: req.body.apiKey,
-			    },
-			    success: function(httpResponse) {
-			    	var response = JSON.parse(httpResponse.text);
+			        key: req.body.apiKey
+			    }});
+		}).then(function(httpResponse){
+	    	var response = JSON.parse(httpResponse.text);
 
-			    	user.set("apiKey", req.body.apiKey);
-					user.set("notificationMail", req.body.adminMail);
+	    	user.set("apiKey", req.body.apiKey);
+			user.set("notificationMail", req.body.adminMail);
 
-					user.save(null, {
-						success: function(user){
-							res.render("settings.ejs", { user: user, msg: { type: "success", text: "Successfully saved."}});
-						},
-						error: function(error){
-							res.render("settings.ejs", { user: user, msg: { type: "Error!", text: "An error occured."}});
-						}
-					});
-					
-			    },
-			    error: function(httpResponse) {
-			    	var response = JSON.parse(httpResponse.text);
-			        res.render("settings.ejs", { user: user, msg: { type: "Error", text: response.message }});
-			    }
-			});			
-		});  
+			return user.save();
+		}, function(httpResponse){
+			var response = JSON.parse(httpResponse.text);
+	        res.render("settings.ejs", { user: user, msg: { type: "Error", text: response.message }});
+		}).then(function(user){
+			res.render("settings.ejs", { user: user, msg: { type: "success", text: "Successfully saved."}});
+		}, function(error){
+			res.render("settings.ejs", { user: user, msg: { type: "Error!", text: "An error occured."}});
+		})
+		
 	}	
 });
 
@@ -266,30 +247,18 @@ app.get("/new", function(req, res){
 
 		var slugs = [];
 		user.fetch().then(function(user){
-			Parse.Cloud.httpRequest({
+			return Parse.Cloud.httpRequest({
 		  		method: 'POST',
 			  url: 'https://mandrillapp.com/api/1.0/templates/list.json',
 			  body: {
 			    key: user.get("apiKey"),
-			  },
-			  success: function(httpResponse) {
-			  	var response = JSON.parse(httpResponse.text);
+			  }});
+		}).then(function(httpResponse){
+			var response = JSON.parse(httpResponse.text);
 
+				var error = null;
 			  	if (response.length == 0){
-
-			  		var webhook = Parse.Object.extend("Webhook");
-					var query = new Parse.Query(webhook);
-					query.equalTo("user", Parse.User.current());
-					query.find({
-						success: function(webhooks){
-			  				res.render("webhooks.ejs", { webhooks: webhooks, msg: { type: "Error", text: "You have no published templates on Mandrill. Please publish the templates you want to use first." }});
-						},
-						error: function(error){
-			  				res.render("webhooks.ejs", { msg: { type: "Error!", text: "You have no published templates on Mandrill. Please publish the templates you want to use first" }});
-						}
-					});  
-
-			  		return;
+			  		error = { type: "Error!", text: "You have no published templates on Mandrill. Please publish the templates you want to use first" };
 			  	}
 
 			   	for (var i=0; i<response.length; i++){
@@ -298,14 +267,12 @@ app.get("/new", function(req, res){
 			   		}
 			   	}
 
-				res.render("new.ejs", { slugs: slugs });
+				res.render("new.ejs", { slugs: slugs, error: error});
 
-			  },
-			  error: function(httpResponse) {
-			    res.render("webhooks.ejs", { msg: { type: "Error!", text: "An Error occured. Did you enter the right Mandrill API-Key?" }});
-			  }
-			});
-		})	
+		}, function(httpResponse){
+		    res.render("webhooks.ejs", { msg: { type: "Error!", text: "An Error occured. Did you enter the right Mandrill API-Key?" }});
+		});
+
 	} else {
 		res.redirect("/login");
 	}
@@ -339,81 +306,70 @@ app.post("/new", function(req, res){
 		// check if choosen mandrill template has a default email sender address
 		if (!req.body.email_from){
 			user.fetch().then(function(user){
-				Parse.Cloud.httpRequest({
+				return Parse.Cloud.httpRequest({
 		  			method: 'POST',
 				  url: 'https://mandrillapp.com/api/1.0/templates/list.json',
 				  body: {
-				    key: user.get("apiKey"),
-				  },
-				  success: function(response){
-					var templates = JSON.parse(response.text);
-					var templateName = "";
-					var slugs = [];
-				  	for (var i=0; i<templates.length; i++){
-				  		if (templates[i].slug === req.body.slug){
-				  			templateName = templates[i].name;
-				  		}
+				    key: user.get("apiKey")
+				  }});
+		  	}).then(function(response){
+				var templates = JSON.parse(response.text);
+				var templateName = "";
+				var slugs = [];
+			  	for (var i=0; i<templates.length; i++){
+			  		if (templates[i].slug === req.body.slug){
+			  			templateName = templates[i].name;
+			  		}
 
-				  		slugs.push(templates[i].slug);
-				  	}
+			  		slugs.push(templates[i].slug);
+			  	}
 
-				  	Parse.Cloud.httpRequest({
+			  	return Parse.Cloud.httpRequest({
   						method: 'POST',
 		  				url: 'https://mandrillapp.com/api/1.0/templates/info.json',
 						  body: {
 						    key: user.get("apiKey"),
 						    name: templateName
-						  },
-						  success: function(response){
-						  		var template = JSON.parse(response.text);
-						  		if (!template.from_email){
-						  			res.render("new.ejs", { slugs: slugs, msg: { type: "Error", text: 'Your choosen template has no default "FROM E-Mail" address so you have to set an email address here.' }});
-						  		} else {
-						  			webhook = new Webhook();
-						  			webhook.set("name", req.body.name);
-									webhook.set("endpoint", req.body.endpoint);
-									webhook.set("mandrillTemplateSlug", req.body.slug);
-									webhook.set("trackOpens", trackOpens);
-									webhook.set("trackClicks", trackClicks);
-									webhook.set("subject", req.body.subject);
-									webhook.set("email_from", req.body.email_from);
-									webhook.set("email_name", req.body.email_name);
-									webhook.set("user", Parse.User.current());
-									webhook.set("in", 0);
-									webhook.set("out", 0);
-
-									console.log("trackGoogleAnalytics: " + req.body.trackGoogleAnalytics);
-
-									if (trackGoogleAnalytics){
-										webhook.set("trackGoogleAnalytics", true);
-										webhook.set("googleAnalyticsCampaign", req.body.googleAnalyticsCampaign);
-										webhook.set("googleAnalyticsDomains", req.body.domain);
-									}
-									
-									webhook.setACL(new Parse.ACL(Parse.User.current()));
-
-									webhook.save(null, {
-										success: function(webhook){
-											res.redirect("/");
-										},
-										error: function(error){
-											res.redirect("/");
-										}
-									});
-						  		}
-						  },
-						  error: function(response){
-					  			res.render("new.ejs", { slugs: slugs, msg: { type: "Error", text: 'An error occured.' }});
 						  }
-					});
+						});
+		  	}).then(function(response){
+		  		var template = JSON.parse(response.text);
+		  		if (!template.from_email){
+		  			res.render("new.ejs", { slugs: slugs, msg: { type: "Error", text: 'Your choosen template has no default "FROM E-Mail" address so you have to set an email address here.' }});
+		  		} else {
+		  			webhook = new Webhook();
+		  			webhook.set("name", req.body.name);
+					webhook.set("endpoint", req.body.endpoint);
+					webhook.set("mandrillTemplateSlug", req.body.slug);
+					webhook.set("trackOpens", trackOpens);
+					webhook.set("trackClicks", trackClicks);
+					webhook.set("subject", req.body.subject);
+					webhook.set("email_from", req.body.email_from);
+					webhook.set("email_name", req.body.email_name);
+					webhook.set("user", Parse.User.current());
+					webhook.set("in", 0);
+					webhook.set("out", 0);
 
-				  },
-				  error: function(response){
-				  	console.log(user);
-				  		console.log(response.text);
-				  }
-				});
-			});
+					console.log("trackGoogleAnalytics: " + req.body.trackGoogleAnalytics);
+
+					if (trackGoogleAnalytics){
+						webhook.set("trackGoogleAnalytics", true);
+						webhook.set("googleAnalyticsCampaign", req.body.googleAnalyticsCampaign);
+						webhook.set("googleAnalyticsDomains", req.body.domain);
+					}
+					
+					webhook.setACL(new Parse.ACL(Parse.User.current()));
+
+					return webhook.save();
+		  		}
+		  	}, function(response){
+		  		res.render("new.ejs", { slugs: slugs, msg: { type: "Error", text: 'An error occured.' }});
+		  	}).then(function(webhook){
+		  		res.redirect("/");
+		  	}, function(error){
+		  		console.log(error.message);
+		  		res.redirect('/');
+		  	});
 
 		} else {
 			webhook.set("name", req.body.name);
@@ -427,21 +383,23 @@ app.post("/new", function(req, res){
 			webhook.set("user", Parse.User.current());
 			webhook.set("in", 0);
 			webhook.set("out", 0);
+
 			if (trackGoogleAnalytics){
 				webhook.set("trackGoogleAnalytics", true);
 				webhook.set("googleAnalyticsCampaign", req.body.googleAnalyticsCampaign);
 				webhook.set("googleAnalyticsDomains", req.body.domain);
 			}
+
 			webhook.setACL(new Parse.ACL(Parse.User.current()));
 
-		webhook.save(null, {
-			success: function(webhook){
-				res.redirect("/");
-			},
-			error: function(webhook, error){
-				res.redirect("/");
-			}
-		});
+			webhook.save(null, {
+				success: function(webhook){
+					res.redirect("/");
+				},
+				error: function(webhook, error){
+					res.redirect("/");
+				}
+			});
 		}
 
 	}
@@ -498,115 +456,96 @@ app.post("/:id/edit", function(req, res){
 	var query = new Parse.Query(webhook);
 
 
-	query.get(req.params.id, {
-		success: function(webhook){
+	query.get(req.params.id).then(function(webhook){
 
-			var trackClicks = false;
-			if (req.body.trackClicks === 'on'){
-				trackClicks = true;
-			}
+		var trackClicks = false;
+		if (req.body.trackClicks === 'on'){
+			trackClicks = true;
+		}
 
-			var trackOpens = false;
-			if (req.body.trackOpens === 'on'){
-				trackOpens = true;
-			}
+		var trackOpens = false;
+		if (req.body.trackOpens === 'on'){
+			trackOpens = true;
+		}
 
-			// check if choosen mandrill template has a default email sender address
-			if (!req.body.email_from){
+		// check if choosen mandrill template has a default email sender address
+		if (!req.body.email_from){
 
-				var user = Parse.User.current();
-				user.fetch().then(function(user){
+			var user = Parse.User.current();
+			user.fetch().then(function(user){
 
-					Parse.Cloud.httpRequest({
-			  			method: 'POST',
-					  	url: 'https://mandrillapp.com/api/1.0/templates/list.json',
-					  	body: {
-					    	key: user.get("apiKey"),
-					  },
-					  success: function(response){
-						var templates = JSON.parse(response.text);
-						var templateName = "";
-						var slugs = [];
-					  	for (var i=0; i<templates.length; i++){
-					  		if (templates[i].slug === req.body.slug){
-					  			templateName = templates[i].name;
-					  		}
+				return Parse.Cloud.httpRequest({
+		  			method: 'POST',
+				  	url: 'https://mandrillapp.com/api/1.0/templates/list.json',
+				  	body: {
+				    	key: user.get("apiKey"),
+				  }});
+			}).then(function(response){
+				var templates = JSON.parse(response.text);
+				var templateName = "";
+				var slugs = [];
+			  	for (var i=0; i<templates.length; i++){
+			  		if (templates[i].slug === req.body.slug){
+			  			templateName = templates[i].name;
+			  		}
 
-					  		slugs.push(templates[i].slug);
-					  	}
+			  		slugs.push(templates[i].slug);
+			  	}
 
-					  	Parse.Cloud.httpRequest({
-							method: 'POST',
-			  				url: 'https://mandrillapp.com/api/1.0/templates/info.json',
-							  body: {
-							    key: user.get("apiKey"),
-							    name: templateName
-							  },
-							  success: function(response){
-							  		var template = JSON.parse(response.text);
-							  		if (!template.from_email){
-							  			res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: 'Your choosen template has no default "FROM E-Mail" address so you have to set an email address here.' }});
-							  		} else {
-							  			webhook = new Webhook();
-							  			webhook.set("name", req.body.name);
-										webhook.set("endpoint", req.body.endpoint);
-										webhook.set("mandrillTemplateSlug", req.body.slug);
-										webhook.set("subject", req.body.subject);
-										webhook.set("googleAnalyticsCampaign", req.body.campaign);	
-										webhook.set("trackClicks", trackClicks);
-										webhook.set("trackOpens", trackOpens);
-										webhook.set("email_from", req.body.email_from);
-										webhook.set("email_name", req.body.email_name);
+			  	return Parse.Cloud.httpRequest({
+					method: 'POST',
+	  				url: 'https://mandrillapp.com/api/1.0/templates/info.json',
+					  body: {
+					    key: user.get("apiKey"),
+					    name: templateName
+					  }});
+			}).then(function(response){
+		  		var template = JSON.parse(response.text);
+		  		if (!template.from_email){
+		  			res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: 'Your choosen template has no default "FROM E-Mail" address so you have to set an email address here.' }});
+		  		} else {
+		  			webhook = new Webhook();
+		  			webhook.set("name", req.body.name);
+					webhook.set("endpoint", req.body.endpoint);
+					webhook.set("mandrillTemplateSlug", req.body.slug);
+					webhook.set("subject", req.body.subject);
+					webhook.set("googleAnalyticsCampaign", req.body.campaign);	
+					webhook.set("trackClicks", trackClicks);
+					webhook.set("trackOpens", trackOpens);
+					webhook.set("email_from", req.body.email_from);
+					webhook.set("email_name", req.body.email_name);
 
-										webhook.save(null, {
-											success: function(webhook){
-												res.redirect("/");
-											},
-											error: function(webhook, error){
-												res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: "An error occured during saving your webhook. Please try again!"}});
-											}
-										});
-							  		}
-							  },
-							  error: function(response){
-							  		var error = JSON.parse(response);
-						  			res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: error.message }});
-							  }
-						});
+					return webhook.save();
+		  		}
+		  	}, function(response){
+		  		var error = JSON.parse(response);
+					res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: error.message }});
+		  	}).then(function(webhook){
+				res.redirect("/");
+		  	}, function(error, webhook){
+		  		console.log(error.message);
+				res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: "An error occured during saving your webhook. Please try again!"}});
+			});
 
-					  },
-					  error: function(response){
-					  	console.log("ERROR");
-					  }
-					});
-				});
+		} else {
+			webhook.set("name", req.body.name);
+			webhook.set("endpoint", req.body.endpoint);
+			webhook.set("mandrillTemplateSlug", req.body.slug);
+			webhook.set("subject", req.body.subject);
+			webhook.set("googleAnalyticsCampaign", req.body.campaign);	
+			webhook.set("trackClicks", trackClicks);
+			webhook.set("trackOpens", trackOpens);
+			webhook.set("email_from", req.body.email_from);
+			webhook.set("email_name", req.body.email_name);
 
-			} else {
-				webhook.set("name", req.body.name);
-				webhook.set("endpoint", req.body.endpoint);
-				webhook.set("mandrillTemplateSlug", req.body.slug);
-				webhook.set("subject", req.body.subject);
-				webhook.set("googleAnalyticsCampaign", req.body.campaign);	
-				webhook.set("trackClicks", trackClicks);
-				webhook.set("trackOpens", trackOpens);
-				webhook.set("email_from", req.body.email_from);
-				webhook.set("email_name", req.body.email_name);
-
-				webhook.save(null, {
-					success: function(webhook){
-						res.redirect("/");
-					},
-					error: function(webhook, error){
-						res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: "An error occured during saving your webhook. Please try again!"}});
-					}
-				});
-			}
-
-			
-
-		},
-		error: function(response){
-			res.render("webhooks", { msg: { type: "Error", text: "An error occured. "}});
+			webhook.save(null, {
+				success: function(webhook){
+					res.redirect("/");
+				},
+				error: function(webhook, error){
+					res.render("edit.ejs", { webhook: webhook, msg: { type: "Error", text: "An error occured during saving your webhook. Please try again!"}});
+				}
+			});
 		}
 	});
 
